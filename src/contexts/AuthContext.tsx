@@ -98,7 +98,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
       const { error } = await supabase.auth.signInWithOAuth({
         provider: "google",
         options: {
-          redirectTo: `${window.location.origin}/auth/callback`,
+          redirectTo: 'https://xirhqadsgbuokkwkvynp.supabase.co/auth/v1/callback',
           scopes: "https://www.googleapis.com/auth/gmail.readonly",
         },
       });
