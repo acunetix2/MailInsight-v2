@@ -1,5 +1,4 @@
 // src/pages/AuthCallback.tsx
-
 import { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
@@ -11,13 +10,11 @@ export default function AuthCallback() {
   useEffect(() => {
     const processOAuthCallback = async () => {
       try {
-        // IMPORTANT: Required to create a Supabase session after Google redirect
-        const { data, error } = await supabase.auth.exchangeCodeForSession(
-          window.location.href
-        );
+        // ✅ No need to pass window.location.href in latest Supabase SDK
+        const { data, error } = await supabase.auth.exchangeCodeForSession();
 
         if (error) {
-          console.error("OAuth exchange error:", error);
+          console.error("OAuth exchange error:", error.message);
           navigate("/auth");
           return;
         }
