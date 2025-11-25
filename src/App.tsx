@@ -21,7 +21,7 @@ import NotFound from "./pages/NotFound";
 import About from "./pages/About";
 import Contact from "./pages/Contact";
 import Team from "./pages/Team";
-import AuthCallback from "@/pages/Authcallback";
+import Authcallback from "@/pages/Authcallback";
 
 const queryClient = new QueryClient();
 
