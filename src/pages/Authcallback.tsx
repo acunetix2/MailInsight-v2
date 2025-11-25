@@ -1,36 +1,41 @@
 // src/pages/AuthCallback.tsx
+
 import { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
+import { Loader2 } from "lucide-react";
 
 export default function AuthCallback() {
   const navigate = useNavigate();
 
   useEffect(() => {
-    const handleOAuthRedirect = async () => {
+    const processOAuthCallback = async () => {
       try {
-        // v2 reads the session automatically from URL if detectSessionInUrl=true
-        const { data: { session }, error } = await supabase.auth.getSession();
+        // IMPORTANT: Required to create a Supabase session after Google redirect
+        const { data, error } = await supabase.auth.exchangeCodeForSession(
+          window.location.href
+        );
 
         if (error) {
-          console.error("OAuth callback error:", error.message);
+          console.error("OAuth exchange error:", error);
           navigate("/auth");
           return;
         }
 
-        if (session) {
-          navigate("/dashboard");
-        } else {
-          navigate("/auth");
-        }
+        // success → session now exists
+        navigate("/dashboard");
       } catch (err) {
         console.error("Unexpected OAuth error:", err);
         navigate("/auth");
       }
     };
 
-    handleOAuthRedirect();
+    processOAuthCallback();
   }, [navigate]);
 
-  return <div>Loading...</div>;
+  return (
+    <div className="flex min-h-screen items-center justify-center">
+      <Loader2 className="h-8 w-8 animate-spin text-primary" />
+    </div>
+  );
 }
