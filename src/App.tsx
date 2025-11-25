@@ -39,7 +39,7 @@ const App = () => (
 			  <Route path="/about" element={<About />} />
 			  <Route path="/contact" element={<Contact />} />
 			  <Route path="/team" element={<Team />} />
-			  <Route path="/auth/v1/callback" element={<Authcallback />} />
+			  <Route path="/auth/callback" element={<Authcallback />} />
               <Route
                 element={
                   <ProtectedRoute>

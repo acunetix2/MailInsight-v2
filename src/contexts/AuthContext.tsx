@@ -98,7 +98,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
       const { error } = await supabase.auth.signInWithOAuth({
         provider: "google",
         options: {
-          redirectTo: `${window.location.origin}/auth/v1/callback`,
+          redirectTo: `${window.location.origin}/auth/callback`,
           scopes: "https://www.googleapis.com/auth/gmail.readonly",
         },
       });
@@ -114,7 +114,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     try {
       const { error } = await supabase.auth.signOut();
       if (error) throw error;
-      navigate("/auth");
+      navigate("/");
       toast.success("Signed out successfully");
     } catch (error: any) {
       console.error("Sign out error:", error);
