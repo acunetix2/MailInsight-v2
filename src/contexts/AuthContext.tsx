@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useEffect, useState } from "react";
 import { User, Session } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
-import { useNavigate, useLocation } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 
 interface AuthContextType {
@@ -11,18 +11,18 @@ interface AuthContextType {
   signInWithEmail: (email: string, password: string) => Promise<{ error: any }>;
   signUpWithEmail: (email: string, password: string, fullName?: string) => Promise<{ error: any }>;
   signInWithGoogle: () => Promise<void>;
-  handleOAuthCallback: () => Promise<void>;
   signOut: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
+  children,
+}) => {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
-  const location = useLocation();
 
   useEffect(() => {
     // Set up auth state listener
@@ -47,31 +47,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return () => subscription.unsubscribe();
   }, [navigate]);
 
-  // Handle Google OAuth callback
-  const handleOAuthCallback = async () => {
-    try {
-      const { error } = await supabase.auth.getSessionFromUrl({ storeSession: true });
-      if (error) throw error;
-
-      const { data: { session } } = await supabase.auth.getSession();
-      setSession(session);
-      setUser(session?.user ?? null);
-
-      navigate("/dashboard");
-    } catch (err: any) {
-      console.error("OAuth callback error:", err);
-      toast.error("Failed to sign in with Google");
-      navigate("/auth");
-    }
-  };
-
   const signInWithEmail = async (email: string, password: string) => {
     try {
-      const { error } = await supabase.auth.signInWithPassword({ email, password });
+      const { error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+
       if (error) {
-        toast.error("Login unsuccessful, please try again");
+        toast.error("login unsuccessful, please try again");
         return { error };
       }
+
       toast.success("Signed in successfully!");
       return { error: null };
     } catch (error: any) {
@@ -87,13 +74,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         password,
         options: {
           emailRedirectTo: `${window.location.origin}/dashboard`,
-          data: { full_name: fullName },
+          data: {
+            full_name: fullName,
+          },
         },
       });
+
       if (error) {
-        toast.error("Signup unsuccessful, please try again after 5 minutes");
+        toast.error("signup unsucessful, please try again after 5 minutes");
         return { error };
       }
+
       toast.success("Account created successfully! Please check your email to confirm.");
       return { error: null };
     } catch (error: any) {
@@ -111,6 +102,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           scopes: "https://www.googleapis.com/auth/gmail.readonly",
         },
       });
+
       if (error) throw error;
     } catch (error: any) {
       console.error("Sign in error:", error);
@@ -130,16 +122,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  // Automatically handle OAuth callback if user lands on /auth/v1/callback
-  useEffect(() => {
-    if (location.pathname === "/auth/v1/callback") {
-      handleOAuthCallback();
-    }
-  }, [location.pathname]);
-
   return (
     <AuthContext.Provider
-      value={{ user, session, loading, signInWithEmail, signUpWithEmail, signInWithGoogle, handleOAuthCallback, signOut }}
+      value={{ user, session, loading, signInWithEmail, signUpWithEmail, signInWithGoogle, signOut }}
     >
       {children}
     </AuthContext.Provider>
@@ -148,6 +133,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
 export const useAuth = () => {
   const context = useContext(AuthContext);
-  if (!context) throw new Error("useAuth must be used within an AuthProvider");
+  if (context === undefined) {
+    throw new Error("useAuth must be used within an AuthProvider");
+  }
   return context;
 };
