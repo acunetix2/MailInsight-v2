@@ -21,7 +21,7 @@ import NotFound from "./pages/NotFound";
 import About from "./pages/About";
 import Contact from "./pages/Contact";
 import Team from "./pages/Team";
-import AuthCallback from "@/pages/AuthCallback";
+import AuthCallback from "@/pages/Authcallback";
 
 const queryClient = new QueryClient();
 
@@ -39,7 +39,7 @@ const App = () => (
 			  <Route path="/about" element={<About />} />
 			  <Route path="/contact" element={<Contact />} />
 			  <Route path="/team" element={<Team />} />
-			  <Route path="/auth/v1/callback" element={<AuthCallback />} />
+			  <Route path="/auth/v1/callback" element={<Authcallback />} />
               <Route
                 element={
                   <ProtectedRoute>
