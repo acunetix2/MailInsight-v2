@@ -44,6 +44,7 @@ const Dashboard = () => {
     fetchEmailScans();
   }, []);
 
+  // Fetch emails from Supabase
   const fetchEmailScans = async () => {
     try {
       const { data, error } = await supabase
@@ -61,69 +62,84 @@ const Dashboard = () => {
     }
   };
 
+  // Demo email scanning
   const scanDemoEmails = async () => {
-    setScanning(true);
-    toast.info("Scanning demo emails...");
+  setScanning(true);
+  toast.info("Scanning demo emails...");
 
-    const demoEmails = [
-      {
-        emailId: `demo-${Date.now()}-1`,
-        subject: "Urgent: Verify Your Account Now!",
-        sender: "Security Team",
-        senderEmail: "no-reply@secure-bank-verify.com",
-        content: "Your account has been suspended. Click here immediately to verify your identity and restore access. Failure to verify within 24 hours will result in permanent account closure.",
-        receivedDate: new Date().toISOString(),
-        hasAttachments: false,
-      },
-      {
-        emailId: `demo-${Date.now()}-2`,
-        subject: "Meeting Notes - Q4 Planning",
-        sender: "Sarah Johnson",
-        senderEmail: "sarah.johnson@company.com",
-        content: "Hi team, here are the notes from yesterday's Q4 planning meeting. Please review and let me know if I missed anything. The next meeting is scheduled for next Tuesday at 2 PM.",
-        receivedDate: new Date(Date.now() - 3600000).toISOString(),
-        hasAttachments: true,
-      },
-      {
-        emailId: `demo-${Date.now()}-3`,
-        subject: "Re: Invoice Payment Due",
-        sender: "Accounts Payable",
-        senderEmail: "payments@vendor-portal.net",
-        content: "Dear valued customer, your invoice #12345 is overdue. Please wire transfer the amount to our new bank account details attached. Contact us immediately to avoid service interruption.",
-        receivedDate: new Date(Date.now() - 7200000).toISOString(),
-        hasAttachments: true,
-      },
-    ];
+  const user = await supabase.auth.getUser(); // Get current logged-in user
+  const userId = user.data.user?.id;
 
-    try {
-      for (const email of demoEmails) {
+  if (!userId) {
+    toast.error("User not authenticated");
+    setScanning(false);
+    return;
+  }
+
+  const demoEmails = [
+    {
+      emailId: `demo-${Date.now()}-1`,
+      subject: "Urgent: Verify Your Account Now!",
+      sender: "Security Team",
+      senderEmail: "no-reply@secure-bank-verify.com",
+      content: "Your account has been suspended. Click here immediately...",
+      receivedDate: new Date().toISOString(),
+      hasAttachments: false,
+    },
+    {
+      emailId: `demo-${Date.now()}-2`,
+      subject: "Meeting Notes - Q4 Planning",
+      sender: "Sarah Johnson",
+      senderEmail: "sarah.johnson@company.com",
+      content: "Hi team, here are the notes from yesterday's Q4 planning meeting...",
+      receivedDate: new Date(Date.now() - 3600000).toISOString(),
+      hasAttachments: true,
+    },
+    {
+      emailId: `demo-${Date.now()}-3`,
+      subject: "Re: Invoice Payment Due",
+      sender: "Accounts Payable",
+      senderEmail: "payments@vendor-portal.net",
+      content: "Dear valued customer, your invoice #12345 is overdue...",
+      receivedDate: new Date(Date.now() - 7200000).toISOString(),
+      hasAttachments: true,
+    },
+  ];
+
+  try {
+    // Await all function calls and handle individual errors
+    const results = await Promise.all(
+      demoEmails.map(async (email) => {
         const { data, error } = await supabase.functions.invoke("analyze-email", {
-          body: email,
+          body: { ...email, userId },
         });
 
         if (error) {
-          console.error("Analysis error:", error);
-          continue;
+          console.error(`Analysis failed for email ${email.emailId}:`, error);
+          return null;
         }
-      }
 
-      await fetchEmailScans();
-      toast.success("Demo emails scanned successfully!");
-    } catch (error: any) {
-      console.error("Scan error:", error);
-      toast.error("Failed to scan demo emails");
-    } finally {
-      setScanning(false);
-    }
-  };
+        return data;
+      })
+    );
 
+    await fetchEmailScans(); // Refresh the email list
+    toast.success("Demo emails scanned successfully!");
+  } catch (error: any) {
+    console.error("Scan error:", error);
+    toast.error(error.message || "Failed to scan demo emails");
+  } finally {
+    setScanning(false);
+  }
+};
+
+  // Gmail sync
   const syncGmail = async () => {
     setSyncing(true);
     toast.info("Syncing Gmail...");
 
     try {
       const { data, error } = await supabase.functions.invoke("sync-gmail");
-
       if (error) throw error;
 
       if (data?.analyzed > 0) {
@@ -134,12 +150,13 @@ const Dashboard = () => {
       }
     } catch (error: any) {
       console.error("Gmail sync error:", error);
-      toast.error(error.message || "Failed to sync Gmail. Make sure Gmail is connected in Settings.");
+      toast.error(error.message || "Failed to sync Gmail. Connect Gmail in Settings.");
     } finally {
       setSyncing(false);
     }
   };
 
+  // Render risk badge
   const getRiskBadge = (riskLevel: string, riskScore: number) => {
     const variants: Record<string, { color: string; icon: any }> = {
       safe: { color: "bg-green-500/10 text-green-600 border-green-500/20", icon: CheckCircle },
@@ -178,45 +195,25 @@ const Dashboard = () => {
     <div className="container mx-auto px-4 py-8">
       {/* Stats */}
       <div className="grid gap-4 md:grid-cols-4 mb-8">
-        <div className="rounded-lg border border-border bg-card p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-muted-foreground">Total Scanned</p>
-              <p className="text-3xl font-bold text-foreground">{stats.total}</p>
+        {[
+          { label: "Total Scanned", value: stats.total, icon: Mail, color: "text-primary" },
+          { label: "Safe", value: stats.safe, icon: CheckCircle, color: "text-green-600" },
+          { label: "Suspicious", value: stats.suspicious, icon: AlertTriangle, color: "text-yellow-600" },
+          { label: "Dangerous", value: stats.dangerous, icon: AlertTriangle, color: "text-red-600" },
+        ].map((stat) => {
+          const StatIcon = stat.icon;
+          return (
+            <div key={stat.label} className="rounded-lg border border-border bg-card p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground">{stat.label}</p>
+                  <p className={`text-3xl font-bold ${stat.color}`}>{stat.value}</p>
+                </div>
+                <StatIcon className={`h-8 w-8 ${stat.color}`} />
+              </div>
             </div>
-            <Mail className="h-8 w-8 text-primary" />
-          </div>
-        </div>
-
-        <div className="rounded-lg border border-border bg-card p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-muted-foreground">Safe</p>
-              <p className="text-3xl font-bold text-green-600">{stats.safe}</p>
-            </div>
-            <CheckCircle className="h-8 w-8 text-green-600" />
-          </div>
-        </div>
-
-        <div className="rounded-lg border border-border bg-card p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-muted-foreground">Suspicious</p>
-              <p className="text-3xl font-bold text-yellow-600">{stats.suspicious}</p>
-            </div>
-            <AlertTriangle className="h-8 w-8 text-yellow-600" />
-          </div>
-        </div>
-
-        <div className="rounded-lg border border-border bg-card p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-muted-foreground">Dangerous</p>
-              <p className="text-3xl font-bold text-red-600">{stats.dangerous}</p>
-            </div>
-            <AlertTriangle className="h-8 w-8 text-red-600" />
-          </div>
-        </div>
+          );
+        })}
       </div>
 
       {/* Controls */}
@@ -232,34 +229,16 @@ const Dashboard = () => {
         </div>
 
         <div className="flex gap-2">
-          <Button
-            variant={filter === "all" ? "default" : "outline"}
-            onClick={() => setFilter("all")}
-            size="sm"
-          >
-            All
-          </Button>
-          <Button
-            variant={filter === "safe" ? "default" : "outline"}
-            onClick={() => setFilter("safe")}
-            size="sm"
-          >
-            Safe
-          </Button>
-          <Button
-            variant={filter === "suspicious" ? "default" : "outline"}
-            onClick={() => setFilter("suspicious")}
-            size="sm"
-          >
-            Suspicious
-          </Button>
-          <Button
-            variant={filter === "dangerous" ? "default" : "outline"}
-            onClick={() => setFilter("dangerous")}
-            size="sm"
-          >
-            Dangerous
-          </Button>
+          {(["all", "safe", "suspicious", "dangerous"] as const).map((f) => (
+            <Button
+              key={f}
+              variant={filter === f ? "default" : "outline"}
+              onClick={() => setFilter(f)}
+              size="sm"
+            >
+              {f.charAt(0).toUpperCase() + f.slice(1)}
+            </Button>
+          ))}
         </div>
 
         <div className="flex gap-2">

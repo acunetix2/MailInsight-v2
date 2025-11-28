@@ -6,6 +6,12 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+interface ConnectRequest {
+  action: "connect" | "disconnect";
+  code?: string;
+  refresh_token?: string;
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -22,7 +28,7 @@ serve(async (req) => {
 
     const supabaseClient = createClient(
       Deno.env.get("SUPABASE_URL") ?? "",
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? ""
     );
 
     const jwt = authHeader.replace("Bearer ", "");
@@ -35,13 +41,12 @@ serve(async (req) => {
       );
     }
 
-    const { action, code, refresh_token } = await req.json();
+    const body: ConnectRequest = await req.json();
 
-    if (action === "connect") {
-      let finalRefreshToken = refresh_token;
-      
-      // If we received an authorization code, exchange it for tokens
-      if (code && !refresh_token) {
+    if (body.action === "connect") {
+      let finalRefreshToken = body.refresh_token;
+
+      if (body.code && !finalRefreshToken) {
         const clientId = Deno.env.get("GOOGLE_CLIENT_ID");
         const clientSecret = Deno.env.get("GOOGLE_CLIENT_SECRET");
         const redirectUri = `${req.headers.get("origin") || ""}/settings`;
@@ -53,12 +58,11 @@ serve(async (req) => {
           );
         }
 
-        // Exchange authorization code for tokens
         const tokenResponse = await fetch("https://oauth2.googleapis.com/token", {
           method: "POST",
           headers: { "Content-Type": "application/x-www-form-urlencoded" },
           body: new URLSearchParams({
-            code,
+            code: body.code,
             client_id: clientId,
             client_secret: clientSecret,
             redirect_uri: redirectUri,
@@ -93,7 +97,6 @@ serve(async (req) => {
         );
       }
 
-      // Store refresh token in profile
       const { error: updateError } = await supabaseClient
         .from("profiles")
         .update({
@@ -114,8 +117,8 @@ serve(async (req) => {
         JSON.stringify({ success: true, message: "Gmail connected successfully" }),
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
-    } else if (action === "disconnect") {
-      // Remove refresh token from profile
+    } 
+    else if (body.action === "disconnect") {
       const { error: updateError } = await supabaseClient
         .from("profiles")
         .update({
@@ -136,13 +139,15 @@ serve(async (req) => {
         JSON.stringify({ success: true, message: "Gmail disconnected successfully" }),
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
-    } else {
+    } 
+    else {
       return new Response(
         JSON.stringify({ error: "Invalid action" }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
-  } catch (error: any) {
+  } 
+  catch (error: any) {
     console.error("Error in connect-gmail function:", error);
     return new Response(
       JSON.stringify({ error: error.message }),

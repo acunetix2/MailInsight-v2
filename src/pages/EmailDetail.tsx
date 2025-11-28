@@ -4,6 +4,9 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
+import { Progress } from "@/components/ui/progress";
+import { Separator } from "@/components/ui/separator";
+import { Textarea } from "@/components/ui/textarea";
 import {
   ArrowLeft,
   Shield,
@@ -14,6 +17,12 @@ import {
   User,
   FileText,
   Loader2,
+  Link as LinkIcon,
+  MessageSquare,
+  Send,
+  TrendingUp,
+  Eye,
+  Ban,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -36,6 +45,9 @@ const EmailDetail = () => {
   const navigate = useNavigate();
   const [email, setEmail] = useState<EmailScan | null>(null);
   const [loading, setLoading] = useState(true);
+  const [chatMessages, setChatMessages] = useState<Array<{ role: string; content: string }>>([]);
+  const [chatInput, setChatInput] = useState("");
+  const [chatLoading, setChatLoading] = useState(false);
 
   useEffect(() => {
     if (id) {
@@ -74,6 +86,47 @@ const EmailDetail = () => {
   const getRiskIcon = (riskLevel: string) => {
     if (riskLevel === "safe") return <CheckCircle className="h-8 w-8" />;
     return <AlertTriangle className="h-8 w-8" />;
+  };
+
+  const handleChatSubmit = async () => {
+    if (!chatInput.trim() || !email) return;
+
+    const userMessage = chatInput.trim();
+    setChatInput("");
+    setChatMessages([...chatMessages, { role: "user", content: userMessage }]);
+    setChatLoading(true);
+
+    try {
+      const { data, error } = await supabase.functions.invoke("ai-chat-assistant", {
+        body: {
+          message: userMessage,
+          emailContext: {
+            subject: email.subject,
+            sender: email.sender_email,
+            riskLevel: email.risk_level,
+            riskScore: email.risk_score,
+            threatIndicators: email.threat_indicators,
+            analysisSummary: email.analysis_summary,
+          },
+        },
+      });
+
+      if (error) throw error;
+
+      setChatMessages((prev) => [
+        ...prev,
+        { role: "assistant", content: data.response },
+      ]);
+    } catch (error: any) {
+      console.error("Chat error:", error);
+      toast.error("Failed to get AI response");
+      setChatMessages((prev) => [
+        ...prev,
+        { role: "assistant", content: "I'm having trouble responding right now. Please try again." },
+      ]);
+    } finally {
+      setChatLoading(false);
+    }
   };
 
   if (loading) {
@@ -217,6 +270,159 @@ const EmailDetail = () => {
                 </div>
               </div>
             )}
+          </div>
+        </Card>
+
+        {/* Visual Threat Breakdown */}
+        <Card className="p-6 mb-6">
+          <h3 className="text-lg font-semibold text-foreground mb-6 flex items-center gap-2">
+            <TrendingUp className="h-5 w-5 text-primary" />
+            Visual Threat Breakdown
+          </h3>
+          
+          <div className="space-y-6">
+            {/* Risk Score Progress */}
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-sm font-medium text-muted-foreground">Overall Risk Score</span>
+                <span className="text-sm font-bold text-foreground">{email.risk_score}/100</span>
+              </div>
+              <Progress 
+                value={email.risk_score} 
+                className={`h-3 ${
+                  email.risk_score > 70 ? '[&>div]:bg-red-600' : 
+                  email.risk_score > 30 ? '[&>div]:bg-yellow-600' : 
+                  '[&>div]:bg-green-600'
+                }`}
+              />
+            </div>
+
+            {/* Threat Categories */}
+            <div className="grid md:grid-cols-3 gap-4">
+              <div className="p-4 rounded-lg border border-border bg-card">
+                <div className="flex items-center gap-2 mb-2">
+                  <Eye className="h-4 w-4 text-blue-600" />
+                  <span className="text-sm font-medium text-muted-foreground">Sender Trust</span>
+                </div>
+                <div className="text-2xl font-bold text-foreground">
+                  {email.risk_score < 30 ? "High" : email.risk_score < 70 ? "Medium" : "Low"}
+                </div>
+              </div>
+
+              <div className="p-4 rounded-lg border border-border bg-card">
+                <div className="flex items-center gap-2 mb-2">
+                  <LinkIcon className="h-4 w-4 text-purple-600" />
+                  <span className="text-sm font-medium text-muted-foreground">Link Safety</span>
+                </div>
+                <div className="text-2xl font-bold text-foreground">
+                  {email.threat_indicators.some(t => t.toLowerCase().includes('link')) ? "Suspicious" : "Safe"}
+                </div>
+              </div>
+
+              <div className="p-4 rounded-lg border border-border bg-card">
+                <div className="flex items-center gap-2 mb-2">
+                  <FileText className="h-4 w-4 text-orange-600" />
+                  <span className="text-sm font-medium text-muted-foreground">Content Risk</span>
+                </div>
+                <div className="text-2xl font-bold text-foreground">
+                  {email.risk_score < 30 ? "Low" : email.risk_score < 70 ? "Medium" : "High"}
+                </div>
+              </div>
+            </div>
+
+            {/* Threat Indicators Breakdown */}
+            {email.threat_indicators && email.threat_indicators.length > 0 && (
+              <div>
+                <h4 className="text-sm font-semibold text-foreground mb-3">Detected Threats</h4>
+                <div className="space-y-2">
+                  {email.threat_indicators.slice(0, 5).map((indicator, index) => (
+                    <div key={index} className="flex items-center gap-3">
+                      <div className="flex-1">
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="text-xs text-muted-foreground">{indicator}</span>
+                          <span className="text-xs font-semibold text-foreground">
+                            {Math.min(100, (index + 1) * 20)}%
+                          </span>
+                        </div>
+                        <Progress value={Math.min(100, (index + 1) * 20)} className="h-1.5" />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        </Card>
+
+        {/* AI Chat Assistant */}
+        <Card className="p-6 mb-6">
+          <h3 className="text-lg font-semibold text-foreground mb-4 flex items-center gap-2">
+            <MessageSquare className="h-5 w-5 text-primary" />
+            AI Security Assistant
+          </h3>
+          
+          <div className="space-y-4">
+            {/* Chat Messages */}
+            <div className="min-h-[200px] max-h-[400px] overflow-y-auto space-y-3 p-4 bg-muted/30 rounded-lg">
+              {chatMessages.length === 0 ? (
+                <div className="text-center py-8">
+                  <MessageSquare className="h-12 w-12 text-muted-foreground mx-auto mb-3" />
+                  <p className="text-sm text-muted-foreground mb-2">Ask me anything about this email</p>
+                  <p className="text-xs text-muted-foreground">
+                    Try: "Why is this email dangerous?" or "What should I do?"
+                  </p>
+                </div>
+              ) : (
+                chatMessages.map((msg, idx) => (
+                  <div
+                    key={idx}
+                    className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}
+                  >
+                    <div
+                      className={`max-w-[80%] p-3 rounded-lg ${
+                        msg.role === "user"
+                          ? "bg-primary text-primary-foreground"
+                          : "bg-card border border-border"
+                      }`}
+                    >
+                      <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
+                    </div>
+                  </div>
+                ))
+              )}
+              {chatLoading && (
+                <div className="flex justify-start">
+                  <div className="bg-card border border-border p-3 rounded-lg">
+                    <Loader2 className="h-4 w-4 animate-spin text-primary" />
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Chat Input */}
+            <div className="flex gap-2">
+              <Textarea
+                placeholder="Ask about this email's security..."
+                value={chatInput}
+                onChange={(e) => setChatInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && !e.shiftKey) {
+                    e.preventDefault();
+                    handleChatSubmit();
+                  }
+                }}
+                className="min-h-[60px] resize-none"
+                disabled={chatLoading}
+              />
+              <Button
+                onClick={handleChatSubmit}
+                disabled={!chatInput.trim() || chatLoading}
+                size="icon"
+                className="h-[60px] w-[60px]"
+              >
+                <Send className="h-5 w-5" />
+              </Button>
+            </div>
           </div>
         </Card>
 

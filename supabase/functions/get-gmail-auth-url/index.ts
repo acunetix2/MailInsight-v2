@@ -6,6 +6,10 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+interface AuthUrlRequest {
+  redirect_uri: string;
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -30,12 +34,19 @@ serve(async (req) => {
 
     if (userError || !user) {
       return new Response(
-        JSON.stringify({ error: "Unauthorized" }),
+        JSON.stringify({ error: "Unauthorized", details: userError?.message }),
         { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    const { redirect_uri } = await req.json();
+    const body: AuthUrlRequest = await req.json();
+    const redirectUri = body.redirect_uri;
+    if (!redirectUri) {
+      return new Response(
+        JSON.stringify({ error: "redirect_uri is required in the request body" }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
 
     const clientId = Deno.env.get("GOOGLE_CLIENT_ID");
     if (!clientId) {
@@ -46,11 +57,10 @@ serve(async (req) => {
     }
 
     const scope = 'https://www.googleapis.com/auth/gmail.readonly';
-    
-    // Create Google OAuth URL with access_type=offline to get refresh token
+
     const googleAuthUrl = `https://accounts.google.com/o/oauth2/v2/auth?` +
-      `client_id=${clientId}` +
-      `&redirect_uri=${encodeURIComponent(redirect_uri)}` +
+      `client_id=${encodeURIComponent(clientId)}` +
+      `&redirect_uri=${encodeURIComponent(redirectUri)}` +
       `&response_type=code` +
       `&scope=${encodeURIComponent(scope)}` +
       `&access_type=offline` +
@@ -60,10 +70,11 @@ serve(async (req) => {
       JSON.stringify({ auth_url: googleAuthUrl }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
+
   } catch (error: any) {
     console.error("Error in get-gmail-auth-url function:", error);
     return new Response(
-      JSON.stringify({ error: error.message }),
+      JSON.stringify({ error: error.message || "Unknown error" }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }
